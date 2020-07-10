@@ -1,16 +1,16 @@
-#ifndef ATEMTally_h
-#define ATEMTally_h
+#ifndef ATEMTally_Steady_h
+#define ATEMTally_Steady_h
 
 #include <Arduino.h>
 #include <Ethernet.h>
 #include <TextFinder.h>
 #include <EEPROM.h>
 
-class ATEMTally
+class ATEMTally_Steady
 {
   public:
-	ATEMTally();
-	void initialize();
+	ATEMTally_Steady();
+	void initialize(int redPin, int greenPin, int bluePin, int resetEE_pin);
 	void setup_ethernet(byte mac[6], byte ip[4], byte switcher_ip[4], int switcher_port);
 	void print_html(EthernetClient& client, byte mac[6], byte ip[4], byte switcher_ip[4], int switcher_port);
 	void change_LED_state(int state);

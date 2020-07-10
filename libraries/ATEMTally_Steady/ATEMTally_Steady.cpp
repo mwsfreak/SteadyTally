@@ -1,19 +1,19 @@
 #include <Arduino.h>
 #include <Ethernet.h>
-#include <ATEMTally.h>
+#include <ATEMTally_Steady.h>
 #include <TextFinder.h>
 #include <EEPROM.h>
 
 // can be called to reset from code (directly to RESET PIN)
-int RESTART_PIN = 7;
+int RESTART_PIN = A5;
 
 // button for resetting EEPROM
-int RESET_PIN = 8;
+int RESET_PIN;
 
 // define LED pins
-int R_PIN = 3;
-int G_PIN = 5;
-int B_PIN = 6;
+int R_PIN;
+int G_PIN;
+int B_PIN;
 
 //used to identify if valid data in EEPROM the "know" bit
 const byte ID = 0x92;
@@ -63,13 +63,27 @@ PGM_P const html[] PROGMEM = { html0, html1, html2, html3, html4, html5, html6, 
 	html13, html14, html15, html16, html17, html18, html19, html20, html21, html22, html23, html24, html25, html26, html27, 
 	html28, html29, html30, html31, html32, html33, html34 };
 
-ATEMTally::ATEMTally() {}
+ATEMTally_Steady::ATEMTally_Steady() {}
 
 /*
-	Initializes the ATEMTally - sets the pin modes
+	Initializes the ATEMTally_Steady - sets the pin modes
 */
 
-void ATEMTally::initialize() {
+void ATEMTally_Steady::initialize(int redPin, int greenPin, int bluePin, int resetEE_pin) {
+	// define LED pins
+	R_PIN = redPin;
+	G_PIN = greenPin;
+	B_PIN = bluePin;
+
+	// button for resetting EEPROM
+	RESET_PIN = resetEE_pin;
+
+	//Set pinmodes
+	pinMode(R_PIN, OUTPUT);
+	pinMode(G_PIN, OUTPUT);
+	pinMode(B_PIN, OUTPUT);
+	pinMode(RESET_PIN, INPUT);
+	
 	pinMode(R_PIN, OUTPUT);
 	pinMode(G_PIN, OUTPUT);
 	pinMode(B_PIN, OUTPUT);
@@ -80,7 +94,7 @@ void ATEMTally::initialize() {
 	Sets up Ethernet
 */
 
-void ATEMTally::setup_ethernet(byte mac[6], byte ip[4], byte switcher_ip[4], int switcher_port) {
+void ATEMTally_Steady::setup_ethernet(byte mac[6], byte ip[4], byte switcher_ip[4], int switcher_port) {
 	int idcheck = EEPROM.read(0);
 	
 	// if EEPROM contains saved data, use that data
@@ -95,7 +109,7 @@ void ATEMTally::setup_ethernet(byte mac[6], byte ip[4], byte switcher_ip[4], int
 			switcher_ip[i] = EEPROM.read(i+11); 
 		}
 		// read switcher port (2 bytes) from address 15 & 16
-		switcher_port = ATEMTally::eeprom_read_int(15);
+		switcher_port = ATEMTally_Steady::eeprom_read_int(15);
 	}
 	
 	Ethernet.begin(mac, ip);
@@ -105,7 +119,7 @@ void ATEMTally::setup_ethernet(byte mac[6], byte ip[4], byte switcher_ip[4], int
 	Prints the HTML for the setup page
 */
 
-void ATEMTally::print_html(EthernetClient& client, byte mac[6], byte ip[4], byte switcher_ip[4], int switcher_port) {
+void ATEMTally_Steady::print_html(EthernetClient& client, byte mac[6], byte ip[4], byte switcher_ip[4], int switcher_port) {
 	if (client) {
 		TextFinder finder(client);
 		while (client.connected()) {      
@@ -119,17 +133,17 @@ void ATEMTally::print_html(EthernetClient& client, byte mac[6], byte ip[4], byte
 					if (finder.findUntil("SBM", "\n\r")) submitted = true;
 					
 					// if submit was pressed, save the EEPROM
-					if (submitted) ATEMTally::save_eeprom(finder, mac, ip, switcher_ip, switcher_port);
+					if (submitted) ATEMTally_Steady::save_eeprom(finder, mac, ip, switcher_ip, switcher_port);
 
 					for (int i=1; i < 34; i++) {
-						ATEMTally::set_field_value(client, i, mac, ip, switcher_ip, switcher_port);
-						ATEMTally::print_buffer(client, &(html[i]), 0, false, false);
+						ATEMTally_Steady::set_field_value(client, i, mac, ip, switcher_ip, switcher_port);
+						ATEMTally_Steady::print_buffer(client, &(html[i]), 0, false, false);
 					}
 					
 					// if submit was pressed, restart the device
 					if (submitted) {
-						ATEMTally::print_buffer(client, &(html[34]), 0, false, false);
-						ATEMTally::restart_device();
+						ATEMTally_Steady::print_buffer(client, &(html[34]), 0, false, false);
+						ATEMTally_Steady::restart_device();
 					}
 					
 					break;
@@ -144,7 +158,7 @@ void ATEMTally::print_html(EthernetClient& client, byte mac[6], byte ip[4], byte
 	Changes the LED state
 */
 
-void ATEMTally::change_LED_state(int state) {
+void ATEMTally_Steady::change_LED_state(int state) {
 	int r_value = 0;
 	int g_value = 0;
 	int b_value = 0;
@@ -164,7 +178,7 @@ void ATEMTally::change_LED_state(int state) {
 	Helps with printing buffer
 */
 
-void ATEMTally::print_buffer(EthernetClient& client, const char** s, int i, bool number, bool hex) {
+void ATEMTally_Steady::print_buffer(EthernetClient& client, const char** s, int i, bool number, bool hex) {
 	int total = 0;
 	int start = 0;
 	char buffer[100];
@@ -194,23 +208,23 @@ void ATEMTally::print_buffer(EthernetClient& client, const char** s, int i, bool
 	Helps with assigning values to input fields
 */
 
-void ATEMTally::set_field_value(EthernetClient& client, int i, byte mac[6], byte ip[4], byte switcher_ip[4], int switcher_port) {
+void ATEMTally_Steady::set_field_value(EthernetClient& client, int i, byte mac[6], byte ip[4], byte switcher_ip[4], int switcher_port) {
 	switch(i) {
-		case 8: ATEMTally::print_buffer(client, &(html[0]), mac[0], false, true); break;
-		case 9: ATEMTally::print_buffer(client, &(html[0]), mac[1], false, true); break;
-		case 10: ATEMTally::print_buffer(client, &(html[0]), mac[2], false, true); break;
-		case 11: ATEMTally::print_buffer(client, &(html[0]), mac[3], false, true); break;
-		case 12: ATEMTally::print_buffer(client, &(html[0]), mac[4], false, true); break;
-		case 13: ATEMTally::print_buffer(client, &(html[0]), mac[5], false, true); break;
-		case 17: ATEMTally::print_buffer(client, &(html[0]), ip[0], true, false); break;
-		case 18: ATEMTally::print_buffer(client, &(html[0]), ip[1], true, false); break;
-		case 19: ATEMTally::print_buffer(client, &(html[0]), ip[2], true, false); break;
-		case 20: ATEMTally::print_buffer(client, &(html[0]), ip[3], true, false); break;
-		case 21: ATEMTally::print_buffer(client, &(html[0]), switcher_ip[0], true, false); break;
-		case 22: ATEMTally::print_buffer(client, &(html[0]), switcher_ip[1], true, false); break;
-		case 23: ATEMTally::print_buffer(client, &(html[0]), switcher_ip[2], true, false); break;
-		case 24: ATEMTally::print_buffer(client, &(html[0]), switcher_ip[3], true, false); break;
-		case 25: ATEMTally::print_buffer(client, &(html[0]), switcher_port, true, false); break;
+		case 8: ATEMTally_Steady::print_buffer(client, &(html[0]), mac[0], false, true); break;
+		case 9: ATEMTally_Steady::print_buffer(client, &(html[0]), mac[1], false, true); break;
+		case 10: ATEMTally_Steady::print_buffer(client, &(html[0]), mac[2], false, true); break;
+		case 11: ATEMTally_Steady::print_buffer(client, &(html[0]), mac[3], false, true); break;
+		case 12: ATEMTally_Steady::print_buffer(client, &(html[0]), mac[4], false, true); break;
+		case 13: ATEMTally_Steady::print_buffer(client, &(html[0]), mac[5], false, true); break;
+		case 17: ATEMTally_Steady::print_buffer(client, &(html[0]), ip[0], true, false); break;
+		case 18: ATEMTally_Steady::print_buffer(client, &(html[0]), ip[1], true, false); break;
+		case 19: ATEMTally_Steady::print_buffer(client, &(html[0]), ip[2], true, false); break;
+		case 20: ATEMTally_Steady::print_buffer(client, &(html[0]), ip[3], true, false); break;
+		case 21: ATEMTally_Steady::print_buffer(client, &(html[0]), switcher_ip[0], true, false); break;
+		case 22: ATEMTally_Steady::print_buffer(client, &(html[0]), switcher_ip[1], true, false); break;
+		case 23: ATEMTally_Steady::print_buffer(client, &(html[0]), switcher_ip[2], true, false); break;
+		case 24: ATEMTally_Steady::print_buffer(client, &(html[0]), switcher_ip[3], true, false); break;
+		case 25: ATEMTally_Steady::print_buffer(client, &(html[0]), switcher_port, true, false); break;
 	}
 }
 
@@ -218,7 +232,7 @@ void ATEMTally::set_field_value(EthernetClient& client, int i, byte mac[6], byte
 	Saves new values to EEPROM
 */
 
-void ATEMTally::save_eeprom(TextFinder& finder, byte mac[6], byte ip[4], byte switcher_ip[4], int& switcher_port) {
+void ATEMTally_Steady::save_eeprom(TextFinder& finder, byte mac[6], byte ip[4], byte switcher_ip[4], int& switcher_port) {
 	byte SET = finder.getValue();
 	
 	// Now while you are looking for the letters "DT", you'll have to remember
@@ -254,7 +268,7 @@ void ATEMTally::save_eeprom(TextFinder& finder, byte mac[6], byte ip[4], byte sw
 	for (int i = 0 ; i < 4; i++){
 		EEPROM.write(i + 11, switcher_ip[i]); 
 	}
-	ATEMTally::eeprom_write_int(15, switcher_port); // write switcher port (2 bytes) to address 15 & 16
+	ATEMTally_Steady::eeprom_write_int(15, switcher_port); // write switcher port (2 bytes) to address 15 & 16
 
 	// set ID to the known bit, so when you reset the Arduino is will use the EEPROM values
 	EEPROM.write(0, ID);
@@ -264,7 +278,7 @@ void ATEMTally::save_eeprom(TextFinder& finder, byte mac[6], byte ip[4], byte sw
 	Writes to EEPROM
 */
 
-void ATEMTally::eeprom_write_int(int p_address, int p_value) {
+void ATEMTally_Steady::eeprom_write_int(int p_address, int p_value) {
 	byte lowByte = ((p_value >> 0) & 0xFF);
 	byte highByte = ((p_value >> 8) & 0xFF);
 
@@ -276,7 +290,7 @@ void ATEMTally::eeprom_write_int(int p_address, int p_value) {
 	Reads from EEPROM
 */
 
-unsigned int ATEMTally::eeprom_read_int(int p_address) {
+unsigned int ATEMTally_Steady::eeprom_read_int(int p_address) {
 	byte lowByte = EEPROM.read(p_address);
 	byte highByte = EEPROM.read(p_address + 1);
 
@@ -287,7 +301,7 @@ unsigned int ATEMTally::eeprom_read_int(int p_address) {
 	Resets EEPROM
 */
 
-void ATEMTally::reset_eeprom() {
+void ATEMTally_Steady::reset_eeprom() {
 	for (int i = 0; i < 512; i++)
 		EEPROM.write(i, 0); 
 }
@@ -296,7 +310,7 @@ void ATEMTally::reset_eeprom() {
 	Restarts device
 */
 
-void ATEMTally::restart_device() {
+void ATEMTally_Steady::restart_device() {
 	asm volatile("jmp 0x7800");
 }
 
@@ -304,9 +318,9 @@ void ATEMTally::restart_device() {
 	Monitors for the reset button press - triggers reset and restart on press
 */
 
-void ATEMTally::monitor_reset() {
+void ATEMTally_Steady::monitor_reset() {
 	if (digitalRead(RESET_PIN)) {		
-		ATEMTally::reset_eeprom();
-		ATEMTally::restart_device();
+		ATEMTally_Steady::reset_eeprom();
+		ATEMTally_Steady::restart_device();
 	}
 }
