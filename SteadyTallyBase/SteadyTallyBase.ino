@@ -17,6 +17,7 @@ This file is a modification of the file ATEM_Tally_Transmitter.ino from the ATEM
 #include <avr/pgmspace.h>
 #include <ATEMstd.h>
 #include <ATEMTally_Steady.h>
+#include <RadioLib.h>
 
 // set the default MAC address
 byte mac[] = { 0x90, 0xA2, 0xDA, 0x0F, 0x1B, 0x82};
@@ -44,13 +45,49 @@ ATEMTally_Steady ATEMTally;
 boolean programOn;
 boolean previewOn;
 
-
 // define a structure for sending over the radio
 struct {
-  int program_1;
-  int program_2;
-  int preview;
+  byte program_1;
+  byte program_2;
+  byte preview;
 } payload;
+
+/*
+// ---------------------- Radio Initialization -----------------------
+// SX1278 has the following connections:
+// NSS pin:   7     (SPI chip-select)
+// DIO0 pin:  2     (RxDone/TxDone)
+// RESET pin: A0    
+// DIO1 pin:  3     (RXtimeout) (optional
+
+RFM98 radio = new Module(7, 2, 9);
+//RFM98 radio = new Module(7, 2, 9, 3);
+
+// save transmission state between loops
+int transmissionState = ERR_NONE;
+
+// flag to indicate that a packet was sent
+volatile bool transmittedFlag = false;
+
+// disable interrupt when it's not needed
+volatile bool enableInterrupt = true;
+
+// this function is called when a complete packet
+// is transmitted by the module
+// IMPORTANT: this function MUST be 'void' type
+//            and MUST NOT have any arguments!
+void setFlag(void) {
+  // check if the interrupt is enabled
+  if(!enableInterrupt) {
+    return;
+  }
+
+  // we sent a packet, set the flag
+  transmittedFlag = true;
+}
+
+// ------------------- End of Radio Initialization -------------------
+*/
 
 // ------------------- LED-shield driver for testing ATEM-connection -------------------
 
@@ -82,9 +119,30 @@ void updateLEDs() {
 
 void setup()
 {
+  /*
+  Serial.begin(9600);
+  
+  // initialize the RFM9x radio with default settings
+  Serial.print(F("[RFM98] Initializing ... "));
+  int state = radio.begin();
+  if (state == ERR_NONE) {
+    Serial.println(F("success!"));
+  } else {
+    Serial.print(F("failed, code "));
+    Serial.println(state);
+    while (true);
+  }
 
-  // initialize the RFM9x radio
+  // set the function that will be called
+  // when packet transmission is finished
+  radio.setDio0Action(setFlag);
 
+  // start transmitting the first packet
+  Serial.print(F("[RFM98] Sending first packet ... "));
+  transmissionState = radio.startTransmit(payload);
+
+  */
+  
   // initialize the ATEMTally object
   ATEMTally.initialize(9, 9, 9, 8); //Tally status pins: Red LED, Green LED, Blue LED, EEProm reset pin
   
@@ -158,17 +216,41 @@ void loop()
   }
 
 /*
-    // when radio is available, transmit the structure with program and preview numbers
-    RF12Mod_recvDone();
-    if (RF12Mod_canSend()) {
-      RF12Mod_sendStart(0, &payload, sizeof payload);
-      ATEMTally.change_LED_state(3);
+  // when radio is available, transmit the structure with program and preview numbers
+  // check if the previous transmission finished
+  if(transmittedFlag) {
+    // disable the interrupt service routine while
+    // processing the data
+    enableInterrupt = false;
+
+    // reset flag
+    transmittedFlag = false;
+
+    if (transmissionState == ERR_NONE) {
+      // packet was successfully sent
+      Serial.println(F("transmission finished!"));
+    } else {
+      Serial.print(F("failed, code "));
+      Serial.println(transmissionState);
     }
+
+    // wait a second before transmitting again - uncomment if necessary
+    //delay(1000);
+
+    // send new packet
+    Serial.print(F("[SX1278] Sending another packet ... "));
+    transmissionState = radio.startTransmit(payload);
+
+    ATEMTally.change_LED_state(3);
+    
+    // we're ready to send more packets,
+    // enable interrupt service routine
+    enableInterrupt = true;
   }
 */
 
 /*
-  // TEST: Increment tally every second
+  // ------ TEST: Increment tally every second ------
   
   if (millis() - lastTime > 1000) {
     if (payload.preview < 4) {
@@ -186,11 +268,11 @@ void loop()
     lastTime = millis();
   }
 
-  // --- END OF TEST --- 
+  // ------ END OF TEST ------
 */
 
 /**/
-  // ------ TEST: Control tally from serial prompt // ------
+  // ------ TEST: Control tally from serial prompt ------
   // Preview: z-b    Program: a-g 
   
   if (Serial.available()) {
@@ -229,16 +311,17 @@ void loop()
         break;
     }
   }
-  // --- END OF TEST --- 
+  // ------ END OF TEST ------
 /**/
 
+  updateLEDs();                         // --------- LED TEST ---------
+  
+  //OPTIMIZE THIS
   // a delay is needed due to some weird issue
   delay(10);
 
   ATEMTally.change_LED_state(1);
 
-  updateLEDs();                         // --------- LED TEST ---------
-  
   // monitors for the reset button press
   ATEMTally.monitor_reset();
   
