@@ -164,9 +164,26 @@ void ATEMTally_Steady::change_LED_state(int state) {
 	int b_value = 0;
 	
 	switch(state) {
-		case 1: r_value = 0; g_value = 255; b_value = 255; break;
-		case 2: r_value = 255; g_value = 0; b_value = 255; break;
-		case 3: r_value = 255; g_value = 255; b_value = 0; break;
+		case 1:
+			r_value = 255;
+			g_value = 0;
+			b_value = 0;
+			break;
+		case 2:
+			r_value = 0;
+			g_value = 255;
+			b_value = 0;
+			break;;
+		case 3:
+			r_value = 0;
+			g_value = 0;
+			b_value = 255;
+			break;
+		default:
+			r_value = 0;
+			g_value = 0;
+			b_value = 0;
+			break;
 	}
   
 	analogWrite(R_PIN, r_value);

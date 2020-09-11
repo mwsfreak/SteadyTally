@@ -1,4 +1,4 @@
-/* ----------- SteadyTallyBase.ino -------------
+/* ----------- SteadyTallyNode.ino -------------
 
 Created 29-06-2020 by Magnus Bisgård Franks
 
@@ -8,28 +8,41 @@ This file is a modification of the file ATEM_Tally_Receiver from the ATEM_Wirele
 */
 #include <RadioLib.h>
 
+// DEBUG
+const byte TALLY_DEBUG = 1;
 
 // ---------------------- Radio Initialization -----------------------
 // SX1278 has the following connections:
-// NSS pin:   7     (SPI chip-select)
+// NSS pin:   10     (SPI chip-select)
 // DIO0 pin:  2     (RxDone/TxDone)
 // RESET pin: A0    
 // DIO1 pin:  3     (RXtimeout) (optional)
 
-RFM98 radio = new Module(7, 2, 9);
+RFM98 radio = new Module(10, 2, A0);
 //RFM98 radio = new Module(7, 2, 9, 3);
 
 // ------------------- End of Radio Initialization -------------------
 
+// RED LED pin
+const byte RED_PIN = 3;
+
+// GREEN LED pin
+const byte GREEN_PIN = 5;
+
+// BLUE LED pin
+const byte BLUE_PIN = 6;
 
 // PROGRAM LED pin
-const byte PROGRAM_PIN = 3;
+const byte PROGRAM_PIN = RED_PIN;
 
 // PREVIEW LED pin
-const byte PREVIEW_PIN = 5;
+const byte PREVIEW_PIN = GREEN_PIN;
+
+// NO SIGNAL pin
+const byte ERROR_PIN = BLUE_PIN;
 
 // POWER LED pin (blinks the node # on power up)
-const byte POWER_PIN = 6;
+const byte POWER_PIN = 13;
 
 // create an array of DIP pins (LSB -> MSB)
 const int dipPins[] = {4, 7, 8, 9};
@@ -39,6 +52,7 @@ unsigned long last_radio_recv = 0;
 
 // default Node # 200 (alias to 0) will blink constantly if signal exists
 int this_node = 200;
+int new_node;
 
 // define array for receiving over the radio
 //   Preview   => payload[0]
@@ -79,10 +93,19 @@ byte setNodeID(int* dipPins, int numPins) {
     }
   }
 
-  this_node = (int)(j + 0.5);
-
+  new_node = (int)(j + 0.5);
+  
   // if the DIP switches are all OFF, assign 200 (alias to 0) to the Node #
-  this_node = this_node == 0 ? 200 : this_node;
+  if (new_node == 0) {
+    new_node = 200;
+  }
+  
+  if (this_node != new_node) {
+    this_node = new_node;
+    
+    Serial.print("\nNODE #: ");
+    Serial.print(this_node);
+  }
 }
 
 void setup() {
@@ -90,34 +113,33 @@ void setup() {
 	pinMode(PROGRAM_PIN, OUTPUT);
 	pinMode(PREVIEW_PIN, OUTPUT);
 	pinMode(POWER_PIN, OUTPUT);
-	pinMode(dipPins[0], INPUT);
-	pinMode(dipPins[1], INPUT);
-	pinMode(dipPins[2], INPUT);
-	pinMode(dipPins[3], INPUT);
+	pinMode(dipPins[0], INPUT_PULLUP);
+	pinMode(dipPins[1], INPUT_PULLUP);
+	pinMode(dipPins[2], INPUT_PULLUP);
+	pinMode(dipPins[3], INPUT_PULLUP);
 
-	// turn all LEDs off (1023 is off)
+	// turn all LEDs off
   analogWrite(PROGRAM_PIN, 0);
   analogWrite(PREVIEW_PIN, 0);
-  analogWrite(POWER_PIN, 0);  
+  digitalWrite(POWER_PIN, LOW);  
  
-  
 	// set the Node # according to the DIP pins
   setNodeID(dipPins, 4);
   
 	if (this_node == 200) {
 		// if the Node # is 0 (alias to 200), blink quickly (30 times) on power on
 		for (int i=0; i < 30; i++) {
-			analogWrite(POWER_PIN, 1023);
-			delay(20);
-			analogWrite(POWER_PIN, 0);
-			delay(20);
+			digitalWrite(POWER_PIN, HIGH);
+			delay(100);
+			digitalWrite(POWER_PIN, LOW);
+			delay(100);
 		}
 	} else {
 		// if the Node # is a set number, blink the Node # on power on
 		for (int i=0; i < this_node; i++) {
-			analogWrite(POWER_PIN, 1023);
+			digitalWrite(POWER_PIN, HIGH);
 			delay(300);
-			analogWrite(POWER_PIN, 0);
+			digitalWrite(POWER_PIN, LOW);
 			delay(300);
 		}
 	}
@@ -129,7 +151,7 @@ void setup() {
 
   // initialize RFM98 with default settings
   Serial.print(F("[RFM98] Initializing ... "));
-  int state = radio.begin();
+  int state = radio.begin(450.0, 125, 9, 7, SX127X_SYNC_WORD, 10, 8, 0);
   if (state == ERR_NONE) {
     Serial.println(F("success!"));
   } else {
@@ -186,54 +208,58 @@ void loop() {
 
       if (this_node == 200) {
         // if the Node # is 200 (which is also 0), blink POWER LED every 1 second if signal exists
-        analogWrite(POWER_PIN, 1023);
+        digitalWrite(POWER_PIN, HIGH);
         delay(250);
-        analogWrite(POWER_PIN, 0);
+        digitalWrite(POWER_PIN, LOW);
         delay(750);
       } else {
         // if the Node # is a set number, trigger an LED accordingly
         if (program_1 == this_node || program_2 == this_node) {
           analogWrite(PREVIEW_PIN, 0);
-          analogWrite(PROGRAM_PIN, 1023);
+          analogWrite(PROGRAM_PIN, 255);
         } else if (preview == this_node) {
           analogWrite(PROGRAM_PIN, 0);
-          analogWrite(PREVIEW_PIN, 1023);
+          analogWrite(PREVIEW_PIN, 255);
         } else {
           analogWrite(PREVIEW_PIN, 0);
           analogWrite(PROGRAM_PIN, 0);
-          analogWrite(POWER_PIN, 0);
+          digitalWrite(POWER_PIN, LOW);
         }
       }
     
       // keep track of last radio signal time
       last_radio_recv = millis();
-    
+
       // packet was successfully received
       Serial.println(F("[RFM98] Received packet!"));
 
-      // print data of the packet
-      Serial.print(F("[RFM98] Data:\t\t"));
-      Serial.print(F("Preview: "));
-      Serial.print(preview);
-      Serial.print(F("\tProgram 1: "));
-      Serial.print(program_1);
-      Serial.print(F("\tProgram 2: "));
-      Serial.print(program_2);
-      
-      // print RSSI (Received Signal Strength Indicator)
-      Serial.print(F("[RFM98] RSSI:\t\t"));
-      Serial.print(radio.getRSSI());
-      Serial.println(F(" dBm"));
+      if (TALLY_DEBUG >= 1) {wq
+        // print data of the packet
+        Serial.print(F("[RFM98] Data:\t\t"));
+        Serial.print(F("Preview: "));
+        Serial.print(preview);
+        Serial.print(F("\tProgram 1: "));
+        Serial.print(program_1);
+        Serial.print(F("\tProgram 2: "));
+        Serial.print(program_2);
 
-      // print SNR (Signal-to-Noise Ratio)
-      Serial.print(F("[RFM98] SNR:\t\t"));
-      Serial.print(radio.getSNR());
-      Serial.println(F(" dB"));
+        if (TALLY_DEBUG >= 2) {
+        // print RSSI (Received Signal Strength Indicator)
+        Serial.print(F("[RFM98] RSSI:\t\t"));
+        Serial.print(radio.getRSSI());
+        Serial.println(F(" dBm"));
+  
+        // print SNR (Signal-to-Noise Ratio)
+        Serial.print(F("[RFM98] SNR:\t\t"));
+        Serial.print(radio.getSNR());
+        Serial.println(F(" dB"));
 
-      // print frequency error
-      Serial.print(F("[RFM98] Frequency error:\t"));
-      Serial.print(radio.getFrequencyError());
-      Serial.println(F(" Hz"));
+        // print frequency error
+        Serial.print(F("[RFM98] Frequency error:\t"));
+        Serial.print(radio.getFrequencyError());
+        Serial.println(F(" Hz"));
+        }
+      }
 
     } else if (state == ERR_CRC_MISMATCH) {
       // packet was received, but is malformed
@@ -258,7 +284,7 @@ void loop() {
 	if (millis() - last_radio_recv > 1000) {
 		analogWrite(PREVIEW_PIN, 0);
 		analogWrite(PROGRAM_PIN, 0);
-		analogWrite(POWER_PIN, 0);
+		analogWrite(ERROR_PIN, 255);
 	}
 
   // Update Node # according to the DIP pins
