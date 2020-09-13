@@ -65,11 +65,11 @@ enum Color {
 // SX1278 has the following connections:
 // NSS pin:   7     (SPI chip-select)
 // DIO0 pin:  2     (RxDone/TxDone)
-// RESET pin: A0
+// RESET pin: 8
 // DIO1 pin:  3     (RXtimeout) (optional
 
-RFM98 radio = new Module(7, 2, A0);
-//RFM98 radio = new Module(7, 2, 9, 3);
+RFM98 radio = new Module(7, 2, 8);
+//RFM98 radio = new Module(7, 2, 8, 3);
 
 // save transmission state between loops
 int transmissionState = ERR_NONE;
@@ -122,7 +122,7 @@ void setup() {
   transmissionState = radio.startTransmit(payload, 3);
 
   // initialize the ATEMTally object
-  ATEMTally.initialize(9, 9, 9, 8); //Tally status pins: Red LED, Green LED, Blue LED, EEProm reset pin
+  ATEMTally.initialize(9, 9, 9, A0); //Tally status pins: Red LED, Green LED, Blue LED, EEProm reset pin
 
   // set the LED to RED
   ATEMTally.change_LED_state(RED);
