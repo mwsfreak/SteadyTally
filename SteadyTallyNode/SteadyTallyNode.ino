@@ -42,7 +42,7 @@ const byte PREVIEW_PIN = GREEN_PIN;
 const byte ERROR_PIN = BLUE_PIN;
 
 // POWER LED pin (blinks the node # on power up)
-const byte POWER_PIN = 13;
+const byte POWER_PIN = A1;
 
 // create an array of DIP pins (LSB -> MSB)
 const int dipPins[] = {4, 7, 8, 9};
@@ -88,7 +88,7 @@ byte setNodeID(int* dipPins, int numPins) {
   float j=0;
   
   for(int i=0; i < numPins; i++) {
-    if (digitalRead(dipPins[i])) {
+    if (digitalRead(dipPins[i]) == 0) {
       j += pow(2, i);
     }
   }
@@ -112,6 +112,7 @@ void setup() {
 	// initialize all the defined pins
 	pinMode(PROGRAM_PIN, OUTPUT);
 	pinMode(PREVIEW_PIN, OUTPUT);
+  pinMode(ERROR_PIN, OUTPUT);
 	pinMode(POWER_PIN, OUTPUT);
 	pinMode(dipPins[0], INPUT_PULLUP);
 	pinMode(dipPins[1], INPUT_PULLUP);
@@ -121,6 +122,7 @@ void setup() {
 	// turn all LEDs off
   analogWrite(PROGRAM_PIN, 0);
   analogWrite(PREVIEW_PIN, 0);
+  analogWrite(ERROR_PIN, 0);
   digitalWrite(POWER_PIN, LOW);  
  
 	// set the Node # according to the DIP pins
@@ -143,7 +145,7 @@ void setup() {
 			delay(300);
 		}
 	}
-  
+
 	// set this variable to current time
   last_radio_recv = millis();
 
@@ -174,7 +176,7 @@ void setup() {
     Serial.println(state);
     while (true);
   }
-
+  
   // if needed, 'listen' mode can be disabled by calling
   // any of the following methods:
   //
@@ -184,6 +186,9 @@ void setup() {
   // radio.receive();
   // radio.readData();
   // radio.scanChannel();
+
+  //Turn on power led when initializing is finished
+  digitalWrite(POWER_PIN, HIGH);
 }
 
 void loop() {
@@ -216,14 +221,13 @@ void loop() {
         // if the Node # is a set number, trigger an LED accordingly
         if (program_1 == this_node || program_2 == this_node) {
           analogWrite(PREVIEW_PIN, 0);
-          analogWrite(PROGRAM_PIN, 255);
+          analogWrite(PROGRAM_PIN, 50);
         } else if (preview == this_node) {
+          analogWrite(PREVIEW_PIN, 50);
           analogWrite(PROGRAM_PIN, 0);
-          analogWrite(PREVIEW_PIN, 255);
         } else {
           analogWrite(PREVIEW_PIN, 0);
           analogWrite(PROGRAM_PIN, 0);
-          digitalWrite(POWER_PIN, LOW);
         }
       }
     
@@ -233,7 +237,7 @@ void loop() {
       // packet was successfully received
       Serial.println(F("[RFM98] Received packet!"));
 
-      if (TALLY_DEBUG >= 1) {wq
+      if (TALLY_DEBUG >= 1) {
         // print data of the packet
         Serial.print(F("[RFM98] Data:\t\t"));
         Serial.print(F("Preview: "));
@@ -284,7 +288,9 @@ void loop() {
 	if (millis() - last_radio_recv > 1000) {
 		analogWrite(PREVIEW_PIN, 0);
 		analogWrite(PROGRAM_PIN, 0);
-		analogWrite(ERROR_PIN, 255);
+		analogWrite(ERROR_PIN, 50);
+	} else {
+    analogWrite(ERROR_PIN, 0);
 	}
 
   // Update Node # according to the DIP pins
