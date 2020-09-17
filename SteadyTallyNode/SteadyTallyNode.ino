@@ -23,6 +23,10 @@ RFM98 radio = new Module(10, 2, A0);
 
 // ------------------- End of Radio Initialization -------------------
 
+// ---- Pin assignments ---
+//DIMMER pin
+const byte DIMMER_PIN = A2;
+
 // RED LED pin
 const byte RED_PIN = 3;
 
@@ -47,6 +51,26 @@ const byte POWER_PIN = A1;
 // create an array of DIP pins (LSB -> MSB)
 const int dipPins[] = {4, 7, 8, 9};
 
+// ---- End of Pin assignments ---
+
+//Read value from DIMMER_PIN
+int dimVal = 0;
+
+//Max PWM values for LED's
+int redMax = 255;
+int greenMax = 255;
+int blueMax = 255;
+
+//Current PWM values for LED's
+int redVal = 10;
+int greenVal = 10;
+int blueVal = 10;
+
+//Map colors to functions 
+int pwmPreview = greenVal;
+int pwmProgram = redVal;
+int pwmError = blueVal;
+
 // last received radio signal time (to power off LEDs when no signal)
 unsigned long last_radio_recv = 0;
 
@@ -59,7 +83,6 @@ int new_node;
 //   Program 1 => payload[1]
 //   Program 2 => payload[2]
 byte payload[3];
-
 byte preview, program_1, program_2 = 0;
 
 // flag to indicate that a packet was received
@@ -114,6 +137,7 @@ void setup() {
 	pinMode(PREVIEW_PIN, OUTPUT);
   pinMode(ERROR_PIN, OUTPUT);
 	pinMode(POWER_PIN, OUTPUT);
+  pinMode(DIMMER_PIN, INPUT);
 	pinMode(dipPins[0], INPUT_PULLUP);
 	pinMode(dipPins[1], INPUT_PULLUP);
 	pinMode(dipPins[2], INPUT_PULLUP);
@@ -192,6 +216,16 @@ void setup() {
 }
 
 void loop() {
+  dimVal = analogRead(DIMMER_PIN);
+  redVal = map(dimVal, 0, 1023, 1, redMax);
+  greenVal = map(dimVal, 0, 1023, 1, greenMax);
+  blueVal = map(dimVal, 0, 1023, 1, blueMax);
+
+  //Map colors to functions 
+  pwmPreview = greenVal;
+  pwmProgram = redVal;
+  pwmError = blueVal;
+  
   if(receivedFlag) {
     // disable the interrupt service routine while
     // processing the data
@@ -221,9 +255,9 @@ void loop() {
         // if the Node # is a set number, trigger an LED accordingly
         if (program_1 == this_node || program_2 == this_node) {
           analogWrite(PREVIEW_PIN, 0);
-          analogWrite(PROGRAM_PIN, 50);
+          analogWrite(PROGRAM_PIN, pwmProgram);
         } else if (preview == this_node) {
-          analogWrite(PREVIEW_PIN, 50);
+          analogWrite(PREVIEW_PIN, pwmPreview);
           analogWrite(PROGRAM_PIN, 0);
         } else {
           analogWrite(PREVIEW_PIN, 0);
@@ -282,13 +316,12 @@ void loop() {
     // enable interrupt service routine
     enableInterrupt = true;
   }
-
   
 	// turn off LEDs when no radio signal exists (the past 1 second)
 	if (millis() - last_radio_recv > 1000) {
 		analogWrite(PREVIEW_PIN, 0);
 		analogWrite(PROGRAM_PIN, 0);
-		analogWrite(ERROR_PIN, 50);
+		analogWrite(ERROR_PIN, pwmError);
 	} else {
     analogWrite(ERROR_PIN, 0);
 	}
