@@ -21,6 +21,8 @@
 
 #define ATEM_debug 1
 
+unsigned long long int lastTime = 0;
+
 // set the default MAC address
 byte mac[] = { 0x90, 0xA2, 0xDA, 0x9E, 0x2C, 0xAC };
 
@@ -164,7 +166,7 @@ void loop()
   ATEMTally.print_html(client, mac, ip, switcher_ip, switcher_port);
 
   // AtemSwitcher function for retrieving the program and preview camera numbers
-  AtemSwitcher.runLoop();
+  //AtemSwitcher.runLoop();
 
   // if connection is gone anyway, try to reconnect
   //IF READY, update tally's
@@ -191,27 +193,31 @@ void loop()
     }
   }
 
-   /*
+   
     // ------ TEST: Increment tally every second ------
 
     if (millis() - lastTime > 1000) {
-      if (payload.preview < 4) {
-        payload.preview++;
+      if (preview < 4) {
+        preview++;
       } else {
-        payload.preview = 0;
+        preview = 0;
       }
 
-      if (payload.program_1 < 4) {
-        payload.program_1++;
+      if (program_1 < 4) {
+        program_1++;
       } else {
-        payload.program_1 = 0;
+        program_1 = 0;
       }
 
+      //offset program and preview numbers by 1
+      if (lastTime == 0) {
+        preview++;
+      }
       lastTime = millis();
     }
 
     // ------ END OF TEST ------
-  */
+  
 
   //Fill payload array with ATEM data
   payload[0] = preview;
